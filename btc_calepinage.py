@@ -65,18 +65,17 @@ class BTCWall:
     THREE_QUARTER_BLOCK = BTC("3/4", 21.75, 14, 9.5)
     HALF_BLOCK = BTC("1/2", 14, 14, 9.5)
     
-    def __init__(self, length, width, height, is_second_wall=False, first_wall=None):
+    def __init__(self, length, height, is_second_wall=False, first_wall=None):
         """Initialise un mur avec ses dimensions
         
         Args:
             length (float): Longueur du mur en cm
-            width (float): Epaisseur du mur en cm
             height (float): Hauteur du mur en cm
             is_second_wall (bool): Indique s'il s'agit du deuxième mur (en angle)
             first_wall (BTCWall): Référence au premier mur (pour l'angle)
         """
         self.length = length
-        self.width = width
+        self.width = 14  # Fixer l'épaisseur à 14cm (épaisseur standard des blocs BTC)
         self.height = height
         self.is_second_wall = is_second_wall
         self.first_wall = first_wall
@@ -101,10 +100,15 @@ class BTCWall:
         # Si c'est le deuxième mur, positionner à l'angle du premier
         if is_second_wall and first_wall:
             # Positionner le deuxième mur pour former un angle droit parfait
-            self.position_x = first_wall.length - width/2
+            # en alignant le bord intérieur du deuxième mur avec le bord extérieur du premier
+            self.position_x = first_wall.length
             self.position_y = 0
             self.position_z = 0
             self.rotation = 90  # Rotation de 90 degrés pour l'angle droit
+            
+            # Marquer ce mur comme étant le deuxième pour un traitement spécial de la jointure
+            self.is_second_wall = True
+            self.first_wall = first_wall
         
         # Calcul du calepinage
         self._calculate_layout()
@@ -341,7 +345,8 @@ class BTCWall:
                 if row % 2 == 0 and row // 2 < len(wall.layer1):
                     blocks = wall.layer1[row // 2]
                     x_pos = wall.position_x
-                    for block in blocks:
+                    for i, block in enumerate(blocks):
+                        # Nous affichons tous les blocs, même ceux qui débordent
                         # Calculer les coordonnées en fonction de la rotation
                         if wall.rotation == 0:
                             # Pas de rotation (premier mur)
@@ -397,7 +402,8 @@ class BTCWall:
                 elif row % 2 == 1 and row // 2 < len(wall.layer2):
                     blocks = wall.layer2[row // 2]
                     x_pos = wall.position_x
-                    for block in blocks:
+                    for i, block in enumerate(blocks):
+                        # Nous affichons tous les blocs, même ceux qui débordent
                         # Calculer les coordonnées en fonction de la rotation
                         if wall.rotation == 0:
                             # Pas de rotation (premier mur)
@@ -640,14 +646,13 @@ class ConsoleApp:
                 if choice == "1":
                     # Créer un mur simple
                     length = float(input("\nEntrez la longueur du mur (cm): "))
-                    width = float(input("Entrez l'épaisseur du mur (cm): "))
                     height = float(input("Entrez la hauteur du mur (cm): "))
                     
-                    if length <= 0 or width <= 0 or height <= 0:
+                    if length <= 0 or height <= 0:
                         print("Erreur: Les dimensions doivent être positives.")
                         continue
                     
-                    self.wall = BTCWall(length, width, height)
+                    self.wall = BTCWall(length, height)
                     self.second_wall = None  # Réinitialiser le deuxième mur
                     self.wall.print_layout()
                     
@@ -660,10 +665,9 @@ class ConsoleApp:
                     # Créer un mur en angle droit (deux murs)
                     print("\n--- Premier mur ---")
                     length1 = float(input("Entrez la longueur du premier mur (cm): "))
-                    width = float(input("Entrez l'épaisseur des murs (cm): "))
                     height = float(input("Entrez la hauteur des murs (cm): "))
                     
-                    if length1 <= 0 or width <= 0 or height <= 0:
+                    if length1 <= 0 or height <= 0:
                         print("Erreur: Les dimensions doivent être positives.")
                         continue
                     
@@ -675,8 +679,8 @@ class ConsoleApp:
                         continue
                     
                     # Créer les deux murs
-                    self.wall = BTCWall(length1, width, height)
-                    self.second_wall = BTCWall(length2, width, height, is_second_wall=True, first_wall=self.wall)
+                    self.wall = BTCWall(length1, height)
+                    self.second_wall = BTCWall(length2, height, is_second_wall=True, first_wall=self.wall)
                     
                     # Afficher les résultats
                     print("\n=== Résultats pour le premier mur ===")
@@ -747,11 +751,25 @@ if HAS_PYQT:
             # Champs de saisie pour les dimensions
             self.length_input = QLineEdit()
             self.length_input.setValidator(QDoubleValidator(0, 10000, 2))
-            self.width_input = QLineEdit()
-            self.width_input.setValidator(QDoubleValidator(0, 1000, 2))
+            
+            # L'épaisseur est fixée à 14cm, on utilise un champ désactivé
+            self.width_input = QLineEdit("14")
+            self.width_input.setEnabled(False)
+            
             self.height_input = QLineEdit()
             self.height_input.setValidator(QDoubleValidator(0, 10000, 2))
             
+            # Case à cocher pour le deuxième mur
+            self.second_wall_checkbox = QCheckBox("Ajouter un deuxième mur en angle droit")
+            self.second_wall_checkbox.stateChanged.connect(self.toggle_second_wall_input)
+            
+            # Champ pour la longueur du deuxième mur (initialement caché)
+            self.second_wall_length_label = QLabel("Longueur du deuxième mur (cm):")
+            self.second_wall_length_label.setVisible(False)
+            self.second_wall_length_input = QLineEdit()
+            self.second_wall_length_input.setValidator(QDoubleValidator(0, 10000, 2))
+            self.second_wall_length_input.setVisible(False)
+
             # Ajouter les champs au layout
             dimensions_layout.addWidget(QLabel("Longueur (cm):"), 0, 0)
             dimensions_layout.addWidget(self.length_input, 0, 1)
@@ -759,23 +777,10 @@ if HAS_PYQT:
             dimensions_layout.addWidget(self.width_input, 1, 1)
             dimensions_layout.addWidget(QLabel("Hauteur (cm):"), 2, 0)
             dimensions_layout.addWidget(self.height_input, 2, 1)
-            
-            # Option pour ajouter un deuxième mur en angle droit
-            self.second_wall_checkbox = QCheckBox("Ajouter un deuxième mur en angle droit")
-            self.second_wall_checkbox.stateChanged.connect(self.toggle_second_wall_input)
             dimensions_layout.addWidget(self.second_wall_checkbox, 3, 0, 1, 2)
-            
-            # Champ pour la longueur du deuxième mur (initialement caché)
-            self.second_wall_length_label = QLabel("Longueur du deuxième mur (cm):")
-            self.second_wall_length_input = QLineEdit()
-            self.second_wall_length_input.setValidator(QDoubleValidator(0, 10000, 2))
             dimensions_layout.addWidget(self.second_wall_length_label, 4, 0)
             dimensions_layout.addWidget(self.second_wall_length_input, 4, 1)
-            
-            # Cacher initialement les champs du deuxième mur
-            self.second_wall_length_label.setVisible(False)
-            self.second_wall_length_input.setVisible(False)
-            
+
             # Bouton de calcul
             self.calculate_button = QPushButton("Calculer le calepinage")
             self.calculate_button.clicked.connect(self.calculate_calepinage)
@@ -870,17 +875,16 @@ if HAS_PYQT:
             try:
                 # Récupérer les dimensions
                 length = float(self.length_input.text() or 0)
-                width = float(self.width_input.text() or 0)
                 height = float(self.height_input.text() or 0)
                 
                 # Vérifier les dimensions
-                if length <= 0 or width <= 0 or height <= 0:
+                if length <= 0 or height <= 0:
                     QMessageBox.warning(self, "Dimensions invalides", 
                                       "Veuillez entrer des dimensions positives pour le mur.")
                     return
                 
                 # Créer le premier mur et calculer le calepinage
-                self.wall = BTCWall(length, width, height)
+                self.wall = BTCWall(length, height)
                 
                 # Vérifier si un deuxième mur est demandé
                 has_second_wall = self.second_wall_checkbox.isChecked()
@@ -896,7 +900,7 @@ if HAS_PYQT:
                         return
                     
                     # Créer le deuxième mur
-                    self.second_wall = BTCWall(length2, width, height, is_second_wall=True, first_wall=self.wall)
+                    self.second_wall = BTCWall(length2, height, is_second_wall=True, first_wall=self.wall)
                 
                 # Mettre à jour le tableau des résultats pour le premier mur
                 block_count = self.wall.get_block_count()
@@ -907,7 +911,7 @@ if HAS_PYQT:
                 # Mettre à jour le résumé
                 total_blocks = self.wall.get_total_blocks()
                 self.summary_label.setText(
-                    f"Total: {total_blocks} blocs pour un mur de {length}x{width}x{height} cm")
+                    f"Total: {total_blocks} blocs pour un mur de {length}x14x{height} cm")
                 
                 # Afficher/cacher les résultats du deuxième mur
                 self.second_wall_results_label.setVisible(has_second_wall)
