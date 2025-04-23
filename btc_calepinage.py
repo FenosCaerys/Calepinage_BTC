@@ -19,6 +19,7 @@ try:
     from mpl_toolkits.mplot3d import Axes3D
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
     import matplotlib.colors as mcolors
+    import matplotlib.gridspec as gridspec
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
@@ -115,10 +116,10 @@ class BTCWall:
         
         # Création des deux couches alternées
         for row in range(num_rows):
-            # Première couche (rangée impaire)
+            # Première couche (rangées impaires)
             if row % 2 == 0:
                 self._create_layer1()
-            # Deuxième couche (rangée paire)
+            # Deuxième couche (rangées paires)
             else:
                 self._create_layer2()
     
@@ -278,14 +279,38 @@ class BTCWall:
             print("Matplotlib n'est pas disponible. Impossible de visualiser graphiquement.")
             return
         
-        # Créer une figure pour la visualisation 3D
-        fig = plt.figure(figsize=(12, 10))
+        # Créer une figure pour la visualisation 3D et 2D
+        if second_wall:
+            # Figure avec 1 sous-graphique pour la 3D et 4 sous-graphiques pour les plans 2D
+            fig = plt.figure(figsize=(18, 12))
+            gs = plt.GridSpec(2, 3, figure=fig, width_ratios=[2, 1, 1], height_ratios=[1, 1])
+            
+            # Sous-graphique pour la visualisation 3D (plus grand, occupe toute la colonne de gauche)
+            ax_3d = fig.add_subplot(gs[:, 0], projection='3d')
+            
+            # Sous-graphiques pour les plans 2D (à droite, 2x2)
+            ax_2d_11 = fig.add_subplot(gs[0, 1])  # Mur 1 - Couche 1
+            ax_2d_12 = fig.add_subplot(gs[0, 2])  # Mur 1 - Couche 2
+            ax_2d_21 = fig.add_subplot(gs[1, 1])  # Mur 2 - Couche 1
+            ax_2d_22 = fig.add_subplot(gs[1, 2])  # Mur 2 - Couche 2
+            
+            fig.suptitle("Calepinage BTC", fontsize=16)
+        else:
+            # Figure avec 1 sous-graphique pour la 3D et 2 sous-graphiques pour les plans 2D
+            fig = plt.figure(figsize=(18, 8))
+            gs = plt.GridSpec(1, 3, figure=fig, width_ratios=[2, 1, 1])
+            
+            # Sous-graphique pour la visualisation 3D (plus grand, à gauche)
+            ax_3d = fig.add_subplot(gs[0, 0], projection='3d')
+            
+            # 2 sous-graphiques pour les plans 2D (à droite)
+            ax_2d_1 = fig.add_subplot(gs[0, 1])  # Couche 1
+            ax_2d_2 = fig.add_subplot(gs[0, 2])  # Couche 2
+            
+            fig.suptitle("Calepinage BTC", fontsize=16)
         
         # Nombre de rangées en hauteur
         num_rows = math.ceil(self.height / self.STANDARD_BLOCK.height)
-        
-        # Visualisation 3D du mur
-        ax = fig.add_subplot(111, projection='3d')
         
         # Couleurs pour les différents types de blocs
         colors = {
@@ -425,17 +450,17 @@ class BTCWall:
                         ax.add_collection3d(poly)
         
         # Ajouter le premier mur
-        add_wall_to_visualization(self, ax)
+        add_wall_to_visualization(self, ax_3d)
         
         # Ajouter le deuxième mur si présent
         if second_wall:
-            add_wall_to_visualization(second_wall, ax)
+            add_wall_to_visualization(second_wall, ax_3d)
         
         # Configurer les axes 3D
-        ax.set_title("Visualisation 3D du calepinage")
-        ax.set_xlabel("Longueur (cm)")
-        ax.set_ylabel("Épaisseur (cm)")
-        ax.set_zlabel("Hauteur (cm)")
+        ax_3d.set_title("Visualisation 3D du calepinage")
+        ax_3d.set_xlabel("Longueur (cm)")
+        ax_3d.set_ylabel("Épaisseur (cm)")
+        ax_3d.set_zlabel("Hauteur (cm)")
         
         # Déterminer les limites des axes en fonction des deux murs
         if second_wall:
@@ -456,17 +481,17 @@ class BTCWall:
         center_z = max_z / 2
         
         # Définir les limites pour avoir la même échelle sur tous les axes
-        ax.set_xlim(center_x - max_dim/2, center_x + max_dim/2)
-        ax.set_ylim(center_y - max_dim/2, center_y + max_dim/2)
-        ax.set_zlim(0, max_dim)  # Commencer à 0 pour la hauteur
+        ax_3d.set_xlim(center_x - max_dim/2, center_x + max_dim/2)
+        ax_3d.set_ylim(center_y - max_dim/2, center_y + max_dim/2)
+        ax_3d.set_zlim(0, max_dim)  # Commencer à 0 pour la hauteur
         
         # Configurer la vue pour mieux voir l'angle entre les murs
         if second_wall:
             # Vue plus adaptée pour voir l'angle entre les deux murs
-            ax.view_init(elev=30, azim=225)
+            ax_3d.view_init(elev=30, azim=225)
         else:
             # Vue standard pour un seul mur
-            ax.view_init(elev=30, azim=45)
+            ax_3d.view_init(elev=30, azim=45)
         
         # Afficher une légende
         from matplotlib.lines import Line2D
@@ -478,24 +503,20 @@ class BTCWall:
             Line2D([0], [0], color=mcolors.to_rgba('orange', alpha=0.8), lw=4, label='3/4 - Couche 2'),
             Line2D([0], [0], color=mcolors.to_rgba('moccasin', alpha=0.8), lw=4, label='1/2 - Couche 2')
         ]
-        ax.legend(handles=legend_elements, loc='upper right')
+        ax_3d.legend(handles=legend_elements, loc='upper right')
         
         # Ajouter des labels pour identifier les murs
         if second_wall:
-            ax.text(self.length/2, self.width/2, self.height + 5, "Mur 1", color='black', 
-                   fontweight='bold', ha='center', va='center', size=12)
-            ax.text(second_wall.position_x, second_wall.position_y + second_wall.length/2, 
-                   second_wall.height + 5, "Mur 2", color='black', 
-                   fontweight='bold', ha='center', va='center', size=12)
+            ax_3d.text(self.length/2, self.width/2, self.height + 5, "Mur 1", color='black', 
+                       fontweight='bold', ha='center', va='center', size=12)
+            ax_3d.text(second_wall.position_x, second_wall.position_y + second_wall.length/2, 
+                       second_wall.height + 5, "Mur 2", color='black', 
+                       fontweight='bold', ha='center', va='center', size=12)
         
-        # Ajouter la visualisation 2D des deux premières couches
+        # Visualisation 2D des deux premières couches
         if second_wall:
-            # Créer une figure avec 4 sous-graphiques (2 couches pour chaque mur)
-            fig2, axs = plt.subplots(2, 2, figsize=(14, 10))
-            fig2.suptitle("Plan 2D des deux premières couches", fontsize=16)
-            
             # Fonction pour dessiner une couche en 2D
-            def draw_layer_2d(wall, layer_blocks, ax, title):
+            def draw_layer_2d(wall, layer_blocks, ax, title, is_second_layer=False):
                 ax.set_title(title)
                 ax.set_xlabel("Longueur (cm)")
                 ax.set_ylabel("Épaisseur (cm)")
@@ -504,9 +525,15 @@ class BTCWall:
                 # Dessiner les blocs
                 x_pos = 0
                 for block in layer_blocks:
+                    # Choisir la couleur en fonction du type de bloc et de la couche
+                    if is_second_layer:
+                        color_key = block.name + '_2'
+                    else:
+                        color_key = block.name
+                    
                     # Dessiner le bloc comme un rectangle
                     rect = plt.Rectangle((x_pos, 0), block.length, block.width, 
-                                        facecolor=colors[block.name], 
+                                        facecolor=colors[color_key], 
                                         edgecolor='black', alpha=0.8)
                     ax.add_patch(rect)
                     
@@ -525,29 +552,22 @@ class BTCWall:
             
             # Dessiner la première couche du premier mur
             if len(self.layer1) > 0:
-                draw_layer_2d(self, self.layer1[0], axs[0, 0], "Mur 1 - Couche 1")
+                draw_layer_2d(self, self.layer1[0], ax_2d_11, "Mur 1 - Couche 1")
             
             # Dessiner la deuxième couche du premier mur
             if len(self.layer2) > 0:
-                draw_layer_2d(self, self.layer2[0], axs[0, 1], "Mur 1 - Couche 2")
+                draw_layer_2d(self, self.layer2[0], ax_2d_12, "Mur 1 - Couche 2", True)
             
             # Dessiner la première couche du deuxième mur
             if len(second_wall.layer1) > 0:
-                draw_layer_2d(second_wall, second_wall.layer1[0], axs[1, 0], "Mur 2 - Couche 1")
+                draw_layer_2d(second_wall, second_wall.layer1[0], ax_2d_21, "Mur 2 - Couche 1")
             
             # Dessiner la deuxième couche du deuxième mur
             if len(second_wall.layer2) > 0:
-                draw_layer_2d(second_wall, second_wall.layer2[0], axs[1, 1], "Mur 2 - Couche 2")
-            
-            # Ajuster l'espacement
-            plt.tight_layout(rect=[0, 0, 1, 0.95])
+                draw_layer_2d(second_wall, second_wall.layer2[0], ax_2d_22, "Mur 2 - Couche 2", True)
         else:
-            # Créer une figure avec 2 sous-graphiques (2 couches pour un seul mur)
-            fig2, axs = plt.subplots(1, 2, figsize=(14, 6))
-            fig2.suptitle("Plan 2D des deux premières couches", fontsize=16)
-            
             # Fonction pour dessiner une couche en 2D
-            def draw_layer_2d(wall, layer_blocks, ax, title):
+            def draw_layer_2d(wall, layer_blocks, ax, title, is_second_layer=False):
                 ax.set_title(title)
                 ax.set_xlabel("Longueur (cm)")
                 ax.set_ylabel("Épaisseur (cm)")
@@ -556,9 +576,15 @@ class BTCWall:
                 # Dessiner les blocs
                 x_pos = 0
                 for block in layer_blocks:
+                    # Choisir la couleur en fonction du type de bloc et de la couche
+                    if is_second_layer:
+                        color_key = block.name + '_2'
+                    else:
+                        color_key = block.name
+                    
                     # Dessiner le bloc comme un rectangle
                     rect = plt.Rectangle((x_pos, 0), block.length, block.width, 
-                                        facecolor=colors[block.name], 
+                                        facecolor=colors[color_key], 
                                         edgecolor='black', alpha=0.8)
                     ax.add_patch(rect)
                     
@@ -577,16 +603,13 @@ class BTCWall:
             
             # Dessiner la première couche du mur
             if len(self.layer1) > 0:
-                draw_layer_2d(self, self.layer1[0], axs[0], "Couche 1")
+                draw_layer_2d(self, self.layer1[0], ax_2d_1, "Couche 1")
             
             # Dessiner la deuxième couche du mur
             if len(self.layer2) > 0:
-                draw_layer_2d(self, self.layer2[0], axs[1], "Couche 2")
-            
-            # Ajuster l'espacement
-            plt.tight_layout(rect=[0, 0, 1, 0.95])
+                draw_layer_2d(self, self.layer2[0], ax_2d_2, "Couche 2", True)
         
-        # Afficher la figure 3D
+        # Afficher la figure
         plt.tight_layout()
         plt.show()
 
