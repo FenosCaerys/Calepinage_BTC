@@ -27,7 +27,7 @@ try:
     from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                 QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                 QGroupBox, QGridLayout, QTableWidget, QTableWidgetItem,
-                                QHeaderView, QMessageBox, QSplitter)
+                                QHeaderView, QMessageBox, QSplitter, QCheckBox)
     from PyQt5.QtCore import Qt
     from PyQt5.QtGui import QDoubleValidator
     HAS_PYQT = True
@@ -64,17 +64,21 @@ class BTCWall:
     THREE_QUARTER_BLOCK = BTC("3/4", 21.75, 14, 9.5)
     HALF_BLOCK = BTC("1/2", 14, 14, 9.5)
     
-    def __init__(self, length, width, height):
+    def __init__(self, length, width, height, is_second_wall=False, first_wall=None):
         """Initialise un mur avec ses dimensions
         
         Args:
             length (float): Longueur du mur en cm
             width (float): Epaisseur du mur en cm
             height (float): Hauteur du mur en cm
+            is_second_wall (bool): Indique s'il s'agit du deuxième mur (en angle)
+            first_wall (BTCWall): Référence au premier mur (pour l'angle)
         """
         self.length = length
         self.width = width
         self.height = height
+        self.is_second_wall = is_second_wall
+        self.first_wall = first_wall
         
         # Stockage du plan de calepinage
         self.layer1 = []  # Première couche
@@ -86,6 +90,20 @@ class BTCWall:
             "3/4": 0,
             "1/2": 0
         }
+        
+        # Position pour la visualisation 3D
+        self.position_x = 0
+        self.position_y = 0
+        self.position_z = 0
+        self.rotation = 0
+        
+        # Si c'est le deuxième mur, positionner à l'angle du premier
+        if is_second_wall and first_wall:
+            # Positionner le deuxième mur pour former un angle droit parfait
+            self.position_x = first_wall.length - width/2
+            self.position_y = 0
+            self.position_z = 0
+            self.rotation = 90  # Rotation de 90 degrés pour l'angle droit
         
         # Calcul du calepinage
         self._calculate_layout()
@@ -250,8 +268,12 @@ class BTCWall:
         print(f"  - Blocs 1/2 (14 x 14 x 9,5 cm): {self.block_count['1/2']}")
         print(f"  - Total: {self.get_total_blocks()} blocs")
     
-    def visualize(self):
-        """Visualise le calepinage avec matplotlib si disponible"""
+    def visualize(self, second_wall=None):
+        """Visualise le calepinage avec matplotlib si disponible
+        
+        Args:
+            second_wall (BTCWall, optional): Deuxième mur à afficher en angle droit
+        """
         if not HAS_MATPLOTLIB:
             print("Matplotlib n'est pas disponible. Impossible de visualiser graphiquement.")
             return
@@ -275,135 +297,199 @@ class BTCWall:
             '1/2_2': mcolors.to_rgba('moccasin', alpha=0.8)
         }
         
-        # Créer les blocs 3D
-        for row in range(num_rows):
-            y = row * self.STANDARD_BLOCK.height
+        # Fonction pour ajouter un mur à la visualisation
+        def add_wall_to_visualization(wall, ax):
+            # Nombre de rangées en hauteur pour ce mur
+            num_rows = math.ceil(wall.height / wall.STANDARD_BLOCK.height)
             
-            # Première couche (rangées impaires)
-            if row % 2 == 0 and row // 2 < len(self.layer1):
-                blocks = self.layer1[row // 2]
-                x_pos = 0
-                for block in blocks:
-                    # Créer les sommets du bloc
-                    vertices = [
-                        # Face avant (x, y, z)
-                        [x_pos, 0, y],
-                        [x_pos + block.length, 0, y],
-                        [x_pos + block.length, 0, y + block.height],
-                        [x_pos, 0, y + block.height],
-                        # Face arrière
-                        [x_pos, block.width, y],
-                        [x_pos + block.length, block.width, y],
-                        [x_pos + block.length, block.width, y + block.height],
-                        [x_pos, block.width, y + block.height]
-                    ]
-                    
-                    # Définir les faces du bloc
-                    faces = [
-                        [vertices[0], vertices[1], vertices[2], vertices[3]],  # Face avant
-                        [vertices[4], vertices[5], vertices[6], vertices[7]],  # Face arrière
-                        [vertices[0], vertices[3], vertices[7], vertices[4]],  # Face gauche
-                        [vertices[1], vertices[2], vertices[6], vertices[5]],  # Face droite
-                        [vertices[3], vertices[2], vertices[6], vertices[7]],  # Face supérieure
-                        [vertices[0], vertices[1], vertices[5], vertices[4]]   # Face inférieure
-                    ]
-                    
-                    # Créer la collection 3D
-                    color_key = block.name
-                    poly = Poly3DCollection(faces, alpha=0.9)
-                    poly.set_facecolor(colors[color_key])
-                    poly.set_edgecolor('black')
-                    ax.add_collection3d(poly)
-                    
-                    # Ajouter une étiquette au centre du bloc
-                    ax.text(x_pos + block.length/2, block.width/2, y + block.height/2, 
-                            block.name, color='black', fontweight='bold', ha='center', va='center')
-                    
-                    x_pos += block.length
+            # Position initiale pour ce mur
+            y_pos_initial = wall.position_y
             
-            # Deuxième couche (rangées paires)
-            elif row % 2 == 1 and row // 2 < len(self.layer2):
-                blocks = self.layer2[row // 2]
-                x_pos = 0
-                for block in blocks:
-                    # Créer les sommets du bloc
-                    vertices = [
-                        # Face avant (x, y, z)
-                        [x_pos, 0, y],
-                        [x_pos + block.length, 0, y],
-                        [x_pos + block.length, 0, y + block.height],
-                        [x_pos, 0, y + block.height],
-                        # Face arrière
-                        [x_pos, block.width, y],
-                        [x_pos + block.length, block.width, y],
-                        [x_pos + block.length, block.width, y + block.height],
-                        [x_pos, block.width, y + block.height]
-                    ]
-                    
-                    # Définir les faces du bloc
-                    faces = [
-                        [vertices[0], vertices[1], vertices[2], vertices[3]],  # Face avant
-                        [vertices[4], vertices[5], vertices[6], vertices[7]],  # Face arrière
-                        [vertices[0], vertices[3], vertices[7], vertices[4]],  # Face gauche
-                        [vertices[1], vertices[2], vertices[6], vertices[5]],  # Face droite
-                        [vertices[3], vertices[2], vertices[6], vertices[7]],  # Face supérieure
-                        [vertices[0], vertices[1], vertices[5], vertices[4]]   # Face inférieure
-                    ]
-                    
-                    # Créer la collection 3D
-                    color_key = block.name + '_2'  # Suffixe pour différencier les couleurs de la couche 2
-                    poly = Poly3DCollection(faces, alpha=0.9)
-                    poly.set_facecolor(colors[color_key])
-                    poly.set_edgecolor('black')
-                    ax.add_collection3d(poly)
-                    
-                    # Ajouter une étiquette au centre du bloc
-                    ax.text(x_pos + block.length/2, block.width/2, y + block.height/2, 
-                            block.name, color='black', fontweight='bold', ha='center', va='center')
-                    
-                    x_pos += block.length
+            # Créer les blocs 3D
+            for row in range(num_rows):
+                z = row * wall.STANDARD_BLOCK.height + wall.position_z
+                
+                # Réinitialiser la position y pour chaque nouvelle rangée
+                wall.position_y = y_pos_initial
+                
+                # Première couche (rangées impaires)
+                if row % 2 == 0 and row // 2 < len(wall.layer1):
+                    blocks = wall.layer1[row // 2]
+                    x_pos = wall.position_x
+                    for block in blocks:
+                        # Calculer les coordonnées en fonction de la rotation
+                        if wall.rotation == 0:
+                            # Pas de rotation (premier mur)
+                            x1, y1 = x_pos, wall.position_y
+                            x2, y2 = x_pos + block.length, wall.position_y
+                            x3, y3 = x_pos + block.length, wall.position_y + block.width
+                            x4, y4 = x_pos, wall.position_y + block.width
+                            
+                            # Mettre à jour la position pour le prochain bloc
+                            x_pos += block.length
+                        elif wall.rotation == 90:
+                            # Rotation de 90 degrés (deuxième mur)
+                            x1, y1 = x_pos, wall.position_y
+                            x2, y2 = x_pos, wall.position_y + block.length
+                            x3, y3 = x_pos - block.width, wall.position_y + block.length
+                            x4, y4 = x_pos - block.width, wall.position_y
+                            
+                            # Mettre à jour la position pour le prochain bloc
+                            wall.position_y += block.length
+                        
+                        # Créer les sommets du bloc
+                        vertices = [
+                            # Face inférieure
+                            [x1, y1, z],
+                            [x2, y2, z],
+                            [x3, y3, z],
+                            [x4, y4, z],
+                            # Face supérieure
+                            [x1, y1, z + block.height],
+                            [x2, y2, z + block.height],
+                            [x3, y3, z + block.height],
+                            [x4, y4, z + block.height]
+                        ]
+                        
+                        # Définir les faces du bloc
+                        faces = [
+                            [vertices[0], vertices[1], vertices[2], vertices[3]],  # Face inférieure
+                            [vertices[4], vertices[5], vertices[6], vertices[7]],  # Face supérieure
+                            [vertices[0], vertices[1], vertices[5], vertices[4]],  # Face avant
+                            [vertices[2], vertices[3], vertices[7], vertices[6]],  # Face arrière
+                            [vertices[0], vertices[3], vertices[7], vertices[4]],  # Face gauche
+                            [vertices[1], vertices[2], vertices[6], vertices[5]]   # Face droite
+                        ]
+                        
+                        # Créer la collection 3D
+                        color_key = block.name
+                        poly = Poly3DCollection(faces, alpha=0.9)
+                        poly.set_facecolor(colors[color_key])
+                        poly.set_edgecolor('black')
+                        ax.add_collection3d(poly)
+                
+                # Deuxième couche (rangées paires)
+                elif row % 2 == 1 and row // 2 < len(wall.layer2):
+                    blocks = wall.layer2[row // 2]
+                    x_pos = wall.position_x
+                    for block in blocks:
+                        # Calculer les coordonnées en fonction de la rotation
+                        if wall.rotation == 0:
+                            # Pas de rotation (premier mur)
+                            x1, y1 = x_pos, wall.position_y
+                            x2, y2 = x_pos + block.length, wall.position_y
+                            x3, y3 = x_pos + block.length, wall.position_y + block.width
+                            x4, y4 = x_pos, wall.position_y + block.width
+                            
+                            # Mettre à jour la position pour le prochain bloc
+                            x_pos += block.length
+                        elif wall.rotation == 90:
+                            # Rotation de 90 degrés (deuxième mur)
+                            x1, y1 = x_pos, wall.position_y
+                            x2, y2 = x_pos, wall.position_y + block.length
+                            x3, y3 = x_pos - block.width, wall.position_y + block.length
+                            x4, y4 = x_pos - block.width, wall.position_y
+                            
+                            # Mettre à jour la position pour le prochain bloc
+                            wall.position_y += block.length
+                        
+                        # Créer les sommets du bloc
+                        vertices = [
+                            # Face inférieure
+                            [x1, y1, z],
+                            [x2, y2, z],
+                            [x3, y3, z],
+                            [x4, y4, z],
+                            # Face supérieure
+                            [x1, y1, z + block.height],
+                            [x2, y2, z + block.height],
+                            [x3, y3, z + block.height],
+                            [x4, y4, z + block.height]
+                        ]
+                        
+                        # Définir les faces du bloc
+                        faces = [
+                            [vertices[0], vertices[1], vertices[2], vertices[3]],  # Face inférieure
+                            [vertices[4], vertices[5], vertices[6], vertices[7]],  # Face supérieure
+                            [vertices[0], vertices[1], vertices[5], vertices[4]],  # Face avant
+                            [vertices[2], vertices[3], vertices[7], vertices[6]],  # Face arrière
+                            [vertices[0], vertices[3], vertices[7], vertices[4]],  # Face gauche
+                            [vertices[1], vertices[2], vertices[6], vertices[5]]   # Face droite
+                        ]
+                        
+                        # Créer la collection 3D
+                        color_key = block.name + '_2'  # Suffixe pour différencier les couleurs de la couche 2
+                        poly = Poly3DCollection(faces, alpha=0.9)
+                        poly.set_facecolor(colors[color_key])
+                        poly.set_edgecolor('black')
+                        ax.add_collection3d(poly)
+        
+        # Ajouter le premier mur
+        add_wall_to_visualization(self, ax)
+        
+        # Ajouter le deuxième mur si présent
+        if second_wall:
+            add_wall_to_visualization(second_wall, ax)
         
         # Configurer les axes 3D
-        ax.set_title("Visualisation 3D du mur")
+        ax.set_title("Visualisation 3D du calepinage")
         ax.set_xlabel("Longueur (cm)")
         ax.set_ylabel("Épaisseur (cm)")
         ax.set_zlabel("Hauteur (cm)")
         
-        # Définir les limites des axes
-        max_dim = max(self.length, self.width, self.height)
+        # Déterminer les limites des axes en fonction des deux murs
+        if second_wall:
+            max_x = max(self.length, second_wall.position_x)
+            max_y = max(self.width, second_wall.position_y + second_wall.length)
+            max_z = max(self.height, second_wall.height)
+        else:
+            max_x = self.length
+            max_y = self.width
+            max_z = self.height
         
-        # Calculer les centres et les marges pour chaque axe
-        x_center = self.length / 2
-        y_center = self.width / 2
-        z_center = self.height / 2
+        # Définir les limites des axes pour qu'ils aient la même échelle
+        max_dim = max(max_x, max_y, max_z) * 1.2  # Ajouter une marge
         
-        # Définir les limites pour que les axes aient la même échelle
-        ax.set_xlim(x_center - max_dim/2, x_center + max_dim/2)
-        ax.set_ylim(y_center - max_dim/2, y_center + max_dim/2)
-        ax.set_zlim(z_center - max_dim/2, z_center + max_dim/2)
+        # Calculer les centres pour chaque axe
+        center_x = max_x / 2
+        center_y = max_y / 2
+        center_z = max_z / 2
         
-        # Forcer le même rapport d'échelle sur tous les axes
-        ax.set_box_aspect([1, 1, 1])
+        # Définir les limites pour avoir la même échelle sur tous les axes
+        ax.set_xlim(center_x - max_dim/2, center_x + max_dim/2)
+        ax.set_ylim(center_y - max_dim/2, center_y + max_dim/2)
+        ax.set_zlim(0, max_dim)  # Commencer à 0 pour la hauteur
         
-        # Ajouter une légende
-        from matplotlib.patches import Patch
+        # Configurer la vue pour mieux voir l'angle entre les murs
+        if second_wall:
+            # Vue plus adaptée pour voir l'angle entre les deux murs
+            ax.view_init(elev=30, azim=225)
+        else:
+            # Vue standard pour un seul mur
+            ax.view_init(elev=30, azim=45)
+        
+        # Afficher une légende
+        from matplotlib.lines import Line2D
         legend_elements = [
-            Patch(facecolor=colors['Standard'], edgecolor='black', label='Couche 1 - Standard'),
-            Patch(facecolor=colors['3/4'], edgecolor='black', label='Couche 1 - 3/4'),
-            Patch(facecolor=colors['1/2'], edgecolor='black', label='Couche 1 - 1/2'),
-            Patch(facecolor=colors['Standard_2'], edgecolor='black', label='Couche 2 - Standard'),
-            Patch(facecolor=colors['3/4_2'], edgecolor='black', label='Couche 2 - 3/4'),
-            Patch(facecolor=colors['1/2_2'], edgecolor='black', label='Couche 2 - 1/2')
+            Line2D([0], [0], color=mcolors.to_rgba('royalblue', alpha=0.8), lw=4, label='Standard - Couche 1'),
+            Line2D([0], [0], color=mcolors.to_rgba('cornflowerblue', alpha=0.8), lw=4, label='3/4 - Couche 1'),
+            Line2D([0], [0], color=mcolors.to_rgba('lightblue', alpha=0.8), lw=4, label='1/2 - Couche 1'),
+            Line2D([0], [0], color=mcolors.to_rgba('darkorange', alpha=0.8), lw=4, label='Standard - Couche 2'),
+            Line2D([0], [0], color=mcolors.to_rgba('orange', alpha=0.8), lw=4, label='3/4 - Couche 2'),
+            Line2D([0], [0], color=mcolors.to_rgba('moccasin', alpha=0.8), lw=4, label='1/2 - Couche 2')
         ]
         ax.legend(handles=legend_elements, loc='upper right')
         
-        # Définir un angle de vue initial
-        ax.view_init(elev=30, azim=45)
-        
-        # Ajuster l'espacement
-        plt.tight_layout()
+        # Ajouter des labels pour identifier les murs
+        if second_wall:
+            ax.text(self.length/2, self.width/2, self.height + 5, "Mur 1", color='black', 
+                   fontweight='bold', ha='center', va='center', size=12)
+            ax.text(second_wall.position_x, second_wall.position_y + second_wall.length/2, 
+                   second_wall.height + 5, "Mur 2", color='black', 
+                   fontweight='bold', ha='center', va='center', size=12)
         
         # Afficher la figure
+        plt.tight_layout()
         plt.show()
 
 
@@ -413,6 +499,7 @@ class ConsoleApp:
     def __init__(self):
         """Initialise l'application console"""
         self.wall = None
+        self.second_wall = None
     
     def run(self):
         """Exécute l'application console"""
@@ -421,21 +508,78 @@ class ConsoleApp:
         
         while True:
             try:
-                length = float(input("\nEntrez la longueur du mur (cm): "))
-                width = float(input("Entrez l'épaisseur du mur (cm): "))
-                height = float(input("Entrez la hauteur du mur (cm): "))
+                print("\n1. Créer un mur simple")
+                print("2. Créer un mur en angle droit (deux murs)")
+                print("3. Quitter")
+                choice = input("\nChoisissez une option (1-3): ")
                 
-                if length <= 0 or width <= 0 or height <= 0:
-                    print("Erreur: Les dimensions doivent être positives.")
-                    continue
+                if choice == "3":
+                    break
                 
-                self.wall = BTCWall(length, width, height)
-                self.wall.print_layout()
+                if choice == "1":
+                    # Créer un mur simple
+                    length = float(input("\nEntrez la longueur du mur (cm): "))
+                    width = float(input("Entrez l'épaisseur du mur (cm): "))
+                    height = float(input("Entrez la hauteur du mur (cm): "))
+                    
+                    if length <= 0 or width <= 0 or height <= 0:
+                        print("Erreur: Les dimensions doivent être positives.")
+                        continue
+                    
+                    self.wall = BTCWall(length, width, height)
+                    self.second_wall = None  # Réinitialiser le deuxième mur
+                    self.wall.print_layout()
+                    
+                    if HAS_MATPLOTLIB:
+                        visualize = input("\nVoulez-vous visualiser le calepinage graphiquement? (o/n): ")
+                        if visualize.lower() == 'o':
+                            self.wall.visualize()
                 
-                if HAS_MATPLOTLIB:
-                    visualize = input("\nVoulez-vous visualiser le calepinage graphiquement? (o/n): ")
-                    if visualize.lower() == 'o':
-                        self.wall.visualize()
+                elif choice == "2":
+                    # Créer un mur en angle droit (deux murs)
+                    print("\n--- Premier mur ---")
+                    length1 = float(input("Entrez la longueur du premier mur (cm): "))
+                    width = float(input("Entrez l'épaisseur des murs (cm): "))
+                    height = float(input("Entrez la hauteur des murs (cm): "))
+                    
+                    if length1 <= 0 or width <= 0 or height <= 0:
+                        print("Erreur: Les dimensions doivent être positives.")
+                        continue
+                    
+                    print("\n--- Deuxième mur (en angle droit) ---")
+                    length2 = float(input("Entrez la longueur du deuxième mur (cm): "))
+                    
+                    if length2 <= 0:
+                        print("Erreur: La longueur doit être positive.")
+                        continue
+                    
+                    # Créer les deux murs
+                    self.wall = BTCWall(length1, width, height)
+                    self.second_wall = BTCWall(length2, width, height, is_second_wall=True, first_wall=self.wall)
+                    
+                    # Afficher les résultats
+                    print("\n=== Résultats pour le premier mur ===")
+                    self.wall.print_layout()
+                    
+                    print("\n=== Résultats pour le deuxième mur ===")
+                    self.second_wall.print_layout()
+                    
+                    # Calcul du total des blocs pour les deux murs
+                    total_standard = self.wall.block_count["Standard"] + self.second_wall.block_count["Standard"]
+                    total_three_quarter = self.wall.block_count["3/4"] + self.second_wall.block_count["3/4"]
+                    total_half = self.wall.block_count["1/2"] + self.second_wall.block_count["1/2"]
+                    total_blocks = total_standard + total_three_quarter + total_half
+                    
+                    print("\n=== Total des blocs pour les deux murs ===")
+                    print(f"  - Blocs standard (29,5 x 14 x 9,5 cm): {total_standard}")
+                    print(f"  - Blocs 3/4 (21,75 x 14 x 9,5 cm): {total_three_quarter}")
+                    print(f"  - Blocs 1/2 (14 x 14 x 9,5 cm): {total_half}")
+                    print(f"  - Total: {total_blocks} blocs")
+                    
+                    if HAS_MATPLOTLIB:
+                        visualize = input("\nVoulez-vous visualiser le calepinage graphiquement? (o/n): ")
+                        if visualize.lower() == 'o':
+                            self.wall.visualize(self.second_wall)
                 
                 again = input("\nVoulez-vous calculer un autre calepinage? (o/n): ")
                 if again.lower() != 'o':
@@ -458,6 +602,10 @@ if HAS_PYQT:
             
             self.setWindowTitle("Calepineur BTC")
             self.setMinimumSize(800, 600)
+            
+            # Initialiser les murs
+            self.wall = None
+            self.second_wall = None
             
             # Initialiser l'interface
             self._init_ui()
@@ -491,10 +639,26 @@ if HAS_PYQT:
             dimensions_layout.addWidget(QLabel("Hauteur (cm):"), 2, 0)
             dimensions_layout.addWidget(self.height_input, 2, 1)
             
+            # Option pour ajouter un deuxième mur en angle droit
+            self.second_wall_checkbox = QCheckBox("Ajouter un deuxième mur en angle droit")
+            self.second_wall_checkbox.stateChanged.connect(self.toggle_second_wall_input)
+            dimensions_layout.addWidget(self.second_wall_checkbox, 3, 0, 1, 2)
+            
+            # Champ pour la longueur du deuxième mur (initialement caché)
+            self.second_wall_length_label = QLabel("Longueur du deuxième mur (cm):")
+            self.second_wall_length_input = QLineEdit()
+            self.second_wall_length_input.setValidator(QDoubleValidator(0, 10000, 2))
+            dimensions_layout.addWidget(self.second_wall_length_label, 4, 0)
+            dimensions_layout.addWidget(self.second_wall_length_input, 4, 1)
+            
+            # Cacher initialement les champs du deuxième mur
+            self.second_wall_length_label.setVisible(False)
+            self.second_wall_length_input.setVisible(False)
+            
             # Bouton de calcul
             self.calculate_button = QPushButton("Calculer le calepinage")
             self.calculate_button.clicked.connect(self.calculate_calepinage)
-            dimensions_layout.addWidget(self.calculate_button, 3, 0, 1, 2)
+            dimensions_layout.addWidget(self.calculate_button, 5, 0, 1, 2)
             
             # Ajouter le groupe de dimensions au layout principal
             main_layout.addWidget(dimensions_group)
@@ -521,6 +685,42 @@ if HAS_PYQT:
             # Ajouter le tableau au layout des résultats
             results_layout.addWidget(self.results_table)
             
+            # Tableau pour les résultats du deuxième mur
+            self.second_wall_results_label = QLabel("Résultats pour le deuxième mur")
+            self.second_wall_results_label.setVisible(False)
+            results_layout.addWidget(self.second_wall_results_label)
+            
+            self.second_wall_results_table = QTableWidget(3, 2)
+            self.second_wall_results_table.setHorizontalHeaderLabels(["Type de bloc", "Quantité"])
+            self.second_wall_results_table.setVerticalHeaderLabels(["", "", ""])
+            self.second_wall_results_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            self.second_wall_results_table.setVisible(False)
+            
+            # Remplir le tableau avec les types de blocs
+            self.second_wall_results_table.setItem(0, 0, QTableWidgetItem("Standard (29,5 x 14 x 9,5 cm)"))
+            self.second_wall_results_table.setItem(1, 0, QTableWidgetItem("3/4 (21,75 x 14 x 9,5 cm)"))
+            self.second_wall_results_table.setItem(2, 0, QTableWidgetItem("1/2 (14 x 14 x 9,5 cm)"))
+            
+            results_layout.addWidget(self.second_wall_results_table)
+            
+            # Tableau pour les résultats totaux
+            self.total_results_label = QLabel("Total des blocs pour les deux murs")
+            self.total_results_label.setVisible(False)
+            results_layout.addWidget(self.total_results_label)
+            
+            self.total_results_table = QTableWidget(3, 2)
+            self.total_results_table.setHorizontalHeaderLabels(["Type de bloc", "Quantité"])
+            self.total_results_table.setVerticalHeaderLabels(["", "", ""])
+            self.total_results_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            self.total_results_table.setVisible(False)
+            
+            # Remplir le tableau avec les types de blocs
+            self.total_results_table.setItem(0, 0, QTableWidgetItem("Standard (29,5 x 14 x 9,5 cm)"))
+            self.total_results_table.setItem(1, 0, QTableWidgetItem("3/4 (21,75 x 14 x 9,5 cm)"))
+            self.total_results_table.setItem(2, 0, QTableWidgetItem("1/2 (14 x 14 x 9,5 cm)"))
+            
+            results_layout.addWidget(self.total_results_table)
+            
             # Ajouter un résumé
             self.summary_label = QLabel("Entrez les dimensions du mur et cliquez sur 'Calculer le calepinage'")
             results_layout.addWidget(self.summary_label)
@@ -538,6 +738,12 @@ if HAS_PYQT:
             # Ajouter le splitter au layout principal
             main_layout.addWidget(splitter)
         
+        def toggle_second_wall_input(self, state):
+            """Affiche ou cache les champs pour le deuxième mur en fonction de l'état de la case à cocher"""
+            is_visible = state == Qt.Checked
+            self.second_wall_length_label.setVisible(is_visible)
+            self.second_wall_length_input.setVisible(is_visible)
+        
         def calculate_calepinage(self):
             """Calcule le calepinage et met à jour l'interface"""
             try:
@@ -552,10 +758,26 @@ if HAS_PYQT:
                                       "Veuillez entrer des dimensions positives pour le mur.")
                     return
                 
-                # Créer le mur et calculer le calepinage
+                # Créer le premier mur et calculer le calepinage
                 self.wall = BTCWall(length, width, height)
                 
-                # Mettre à jour le tableau des résultats
+                # Vérifier si un deuxième mur est demandé
+                has_second_wall = self.second_wall_checkbox.isChecked()
+                self.second_wall = None
+                
+                if has_second_wall:
+                    # Récupérer la longueur du deuxième mur
+                    length2 = float(self.second_wall_length_input.text() or 0)
+                    
+                    if length2 <= 0:
+                        QMessageBox.warning(self, "Dimensions invalides", 
+                                          "Veuillez entrer une longueur positive pour le deuxième mur.")
+                        return
+                    
+                    # Créer le deuxième mur
+                    self.second_wall = BTCWall(length2, width, height, is_second_wall=True, first_wall=self.wall)
+                
+                # Mettre à jour le tableau des résultats pour le premier mur
                 block_count = self.wall.get_block_count()
                 self.results_table.setItem(0, 1, QTableWidgetItem(str(block_count["Standard"])))
                 self.results_table.setItem(1, 1, QTableWidgetItem(str(block_count["3/4"])))
@@ -565,6 +787,33 @@ if HAS_PYQT:
                 total_blocks = self.wall.get_total_blocks()
                 self.summary_label.setText(
                     f"Total: {total_blocks} blocs pour un mur de {length}x{width}x{height} cm")
+                
+                # Afficher/cacher les résultats du deuxième mur
+                self.second_wall_results_label.setVisible(has_second_wall)
+                self.second_wall_results_table.setVisible(has_second_wall)
+                self.total_results_label.setVisible(has_second_wall)
+                self.total_results_table.setVisible(has_second_wall)
+                
+                if has_second_wall and self.second_wall:
+                    # Mettre à jour le tableau des résultats pour le deuxième mur
+                    block_count2 = self.second_wall.get_block_count()
+                    self.second_wall_results_table.setItem(0, 1, QTableWidgetItem(str(block_count2["Standard"])))
+                    self.second_wall_results_table.setItem(1, 1, QTableWidgetItem(str(block_count2["3/4"])))
+                    self.second_wall_results_table.setItem(2, 1, QTableWidgetItem(str(block_count2["1/2"])))
+                    
+                    # Calculer et afficher les totaux
+                    total_standard = block_count["Standard"] + block_count2["Standard"]
+                    total_three_quarter = block_count["3/4"] + block_count2["3/4"]
+                    total_half = block_count["1/2"] + block_count2["1/2"]
+                    total_blocks_all = total_standard + total_three_quarter + total_half
+                    
+                    self.total_results_table.setItem(0, 1, QTableWidgetItem(str(total_standard)))
+                    self.total_results_table.setItem(1, 1, QTableWidgetItem(str(total_three_quarter)))
+                    self.total_results_table.setItem(2, 1, QTableWidgetItem(str(total_half)))
+                    
+                    # Mettre à jour le résumé
+                    self.summary_label.setText(
+                        f"Total: {total_blocks_all} blocs pour les deux murs")
                 
                 # Activer le bouton de visualisation si matplotlib est disponible
                 if HAS_MATPLOTLIB:
@@ -577,7 +826,10 @@ if HAS_PYQT:
         def visualize_calepinage(self):
             """Visualise le calepinage avec matplotlib"""
             if hasattr(self, 'wall') and self.wall is not None and HAS_MATPLOTLIB:
-                self.wall.visualize()
+                if hasattr(self, 'second_wall') and self.second_wall is not None:
+                    self.wall.visualize(self.second_wall)
+                else:
+                    self.wall.visualize()
 
 
 def main():
