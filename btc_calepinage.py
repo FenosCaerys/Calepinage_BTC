@@ -12,7 +12,7 @@ import math
 import os
 import sys
 
-# Essayer d'importer les bibliothèques graphiques, mais continuer mêame si elles ne sont pas disponibles
+# Essayer d'importer les bibliothèques graphiques, mais continuer même si elles ne sont pas disponibles
 try:
     import numpy as np
     import matplotlib.pyplot as plt
@@ -370,9 +370,20 @@ class BTCWall:
         ax.set_zlabel("Hauteur (cm)")
         
         # Définir les limites des axes
-        ax.set_xlim(0, self.length)
-        ax.set_ylim(0, self.width)
-        ax.set_zlim(0, self.height)
+        max_dim = max(self.length, self.width, self.height)
+        
+        # Calculer les centres et les marges pour chaque axe
+        x_center = self.length / 2
+        y_center = self.width / 2
+        z_center = self.height / 2
+        
+        # Définir les limites pour que les axes aient la même échelle
+        ax.set_xlim(x_center - max_dim/2, x_center + max_dim/2)
+        ax.set_ylim(y_center - max_dim/2, y_center + max_dim/2)
+        ax.set_zlim(z_center - max_dim/2, z_center + max_dim/2)
+        
+        # Forcer le même rapport d'échelle sur tous les axes
+        ax.set_box_aspect([1, 1, 1])
         
         # Ajouter une légende
         from matplotlib.patches import Patch
