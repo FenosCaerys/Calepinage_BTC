@@ -488,7 +488,105 @@ class BTCWall:
                    second_wall.height + 5, "Mur 2", color='black', 
                    fontweight='bold', ha='center', va='center', size=12)
         
-        # Afficher la figure
+        # Ajouter la visualisation 2D des deux premières couches
+        if second_wall:
+            # Créer une figure avec 4 sous-graphiques (2 couches pour chaque mur)
+            fig2, axs = plt.subplots(2, 2, figsize=(14, 10))
+            fig2.suptitle("Plan 2D des deux premières couches", fontsize=16)
+            
+            # Fonction pour dessiner une couche en 2D
+            def draw_layer_2d(wall, layer_blocks, ax, title):
+                ax.set_title(title)
+                ax.set_xlabel("Longueur (cm)")
+                ax.set_ylabel("Épaisseur (cm)")
+                ax.grid(True)
+                
+                # Dessiner les blocs
+                x_pos = 0
+                for block in layer_blocks:
+                    # Dessiner le bloc comme un rectangle
+                    rect = plt.Rectangle((x_pos, 0), block.length, block.width, 
+                                        facecolor=colors[block.name], 
+                                        edgecolor='black', alpha=0.8)
+                    ax.add_patch(rect)
+                    
+                    # Ajouter une étiquette au centre du bloc
+                    if block.length >= 20:  # Seulement pour les blocs standard et 3/4
+                        ax.text(x_pos + block.length/2, block.width/2, block.name, 
+                               color='black', fontweight='bold', ha='center', va='center')
+                    
+                    # Mettre à jour la position pour le prochain bloc
+                    x_pos += block.length
+                
+                # Configurer les limites du graphique
+                ax.set_xlim(0, wall.length)
+                ax.set_ylim(0, wall.width)
+                ax.set_aspect('equal')
+            
+            # Dessiner la première couche du premier mur
+            if len(self.layer1) > 0:
+                draw_layer_2d(self, self.layer1[0], axs[0, 0], "Mur 1 - Couche 1")
+            
+            # Dessiner la deuxième couche du premier mur
+            if len(self.layer2) > 0:
+                draw_layer_2d(self, self.layer2[0], axs[0, 1], "Mur 1 - Couche 2")
+            
+            # Dessiner la première couche du deuxième mur
+            if len(second_wall.layer1) > 0:
+                draw_layer_2d(second_wall, second_wall.layer1[0], axs[1, 0], "Mur 2 - Couche 1")
+            
+            # Dessiner la deuxième couche du deuxième mur
+            if len(second_wall.layer2) > 0:
+                draw_layer_2d(second_wall, second_wall.layer2[0], axs[1, 1], "Mur 2 - Couche 2")
+            
+            # Ajuster l'espacement
+            plt.tight_layout(rect=[0, 0, 1, 0.95])
+        else:
+            # Créer une figure avec 2 sous-graphiques (2 couches pour un seul mur)
+            fig2, axs = plt.subplots(1, 2, figsize=(14, 6))
+            fig2.suptitle("Plan 2D des deux premières couches", fontsize=16)
+            
+            # Fonction pour dessiner une couche en 2D
+            def draw_layer_2d(wall, layer_blocks, ax, title):
+                ax.set_title(title)
+                ax.set_xlabel("Longueur (cm)")
+                ax.set_ylabel("Épaisseur (cm)")
+                ax.grid(True)
+                
+                # Dessiner les blocs
+                x_pos = 0
+                for block in layer_blocks:
+                    # Dessiner le bloc comme un rectangle
+                    rect = plt.Rectangle((x_pos, 0), block.length, block.width, 
+                                        facecolor=colors[block.name], 
+                                        edgecolor='black', alpha=0.8)
+                    ax.add_patch(rect)
+                    
+                    # Ajouter une étiquette au centre du bloc
+                    if block.length >= 20:  # Seulement pour les blocs standard et 3/4
+                        ax.text(x_pos + block.length/2, block.width/2, block.name, 
+                               color='black', fontweight='bold', ha='center', va='center')
+                    
+                    # Mettre à jour la position pour le prochain bloc
+                    x_pos += block.length
+                
+                # Configurer les limites du graphique
+                ax.set_xlim(0, wall.length)
+                ax.set_ylim(0, wall.width)
+                ax.set_aspect('equal')
+            
+            # Dessiner la première couche du mur
+            if len(self.layer1) > 0:
+                draw_layer_2d(self, self.layer1[0], axs[0], "Couche 1")
+            
+            # Dessiner la deuxième couche du mur
+            if len(self.layer2) > 0:
+                draw_layer_2d(self, self.layer2[0], axs[1], "Couche 2")
+            
+            # Ajuster l'espacement
+            plt.tight_layout(rect=[0, 0, 1, 0.95])
+        
+        # Afficher la figure 3D
         plt.tight_layout()
         plt.show()
 
