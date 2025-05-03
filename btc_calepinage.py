@@ -543,11 +543,6 @@ class BTCWall:
                                         edgecolor='black', alpha=0.8)
                     ax.add_patch(rect)
                     
-                    # Ajouter une étiquette au centre du bloc
-                    if block.length >= 20:  # Seulement pour les blocs standard et 3/4
-                        ax.text(x_pos + block.length/2, block.width/2, block.name, 
-                               color='black', fontweight='bold', ha='center', va='center')
-                    
                     # Mettre à jour la position pour le prochain bloc
                     x_pos += block.length
                 
@@ -593,11 +588,6 @@ class BTCWall:
                                         facecolor=colors[color_key], 
                                         edgecolor='black', alpha=0.8)
                     ax.add_patch(rect)
-                    
-                    # Ajouter une étiquette au centre du bloc
-                    if block.length >= 20:  # Seulement pour les blocs standard et 3/4
-                        ax.text(x_pos + block.length/2, block.width/2, block.name, 
-                               color='black', fontweight='bold', ha='center', va='center')
                     
                     # Mettre à jour la position pour le prochain bloc
                     x_pos += block.length
