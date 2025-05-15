@@ -15,6 +15,9 @@ import sys
 # Essayer d'importer les bibliothèques graphiques, mais continuer même si elles ne sont pas disponibles
 try:
     import numpy as np
+    # Configurer matplotlib pour utiliser le backend Qt5Agg
+    import matplotlib
+    matplotlib.use('Qt5Agg')
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -64,6 +67,9 @@ class BTCWall:
     STANDARD_BLOCK = BTC("Standard", 29.5, 14, 9.5)
     THREE_QUARTER_BLOCK = BTC("3/4", 21.75, 14, 9.5)
     HALF_BLOCK = BTC("1/2", 14, 14, 9.5)
+    
+    # Définition de l'épaisseur des joints verticaux entre les briques
+    JOINT_WIDTH = 1.5  # en cm
     
     def __init__(self, length, height, is_second_wall=False, first_wall=None):
         """Initialise un mur avec ses dimensions
@@ -323,7 +329,8 @@ class BTCWall:
             '1/2': mcolors.to_rgba('lightblue', alpha=0.8),
             'Standard_2': mcolors.to_rgba('darkorange', alpha=0.8),
             '3/4_2': mcolors.to_rgba('orange', alpha=0.8),
-            '1/2_2': mcolors.to_rgba('moccasin', alpha=0.8)
+            '1/2_2': mcolors.to_rgba('moccasin', alpha=0.8),
+            'Joint': mcolors.to_rgba('dimgray', alpha=1.0)  # Couleur gris foncé pour les joints
         }
         
         # Fonction pour ajouter un mur à la visualisation
@@ -397,6 +404,51 @@ class BTCWall:
                         poly.set_facecolor(colors[color_key])
                         poly.set_edgecolor('black')
                         ax.add_collection3d(poly)
+                        
+                        # Ajouter un joint vertical après chaque bloc (sauf le dernier)
+                        if i < len(blocks) - 1 and wall.JOINT_WIDTH > 0:
+                            if wall.rotation == 0:
+                                # Joint vertical pour le premier mur
+                                joint_x1, joint_y1 = x_pos - wall.JOINT_WIDTH, wall.position_y
+                                joint_x2, joint_y2 = x_pos, wall.position_y
+                                joint_x3, joint_y3 = x_pos, wall.position_y + block.width
+                                joint_x4, joint_y4 = x_pos - wall.JOINT_WIDTH, wall.position_y + block.width
+                            elif wall.rotation == 90:
+                                # Joint vertical pour le deuxième mur
+                                joint_x1, joint_y1 = x_pos, wall.position_y - wall.JOINT_WIDTH
+                                joint_x2, joint_y2 = x_pos, wall.position_y
+                                joint_x3, joint_y3 = x_pos - block.width, wall.position_y
+                                joint_x4, joint_y4 = x_pos - block.width, wall.position_y - wall.JOINT_WIDTH
+                            
+                            # Créer les sommets du joint
+                            joint_vertices = [
+                                # Face inférieure
+                                [joint_x1, joint_y1, z],
+                                [joint_x2, joint_y2, z],
+                                [joint_x3, joint_y3, z],
+                                [joint_x4, joint_y4, z],
+                                # Face supérieure
+                                [joint_x1, joint_y1, z + block.height],
+                                [joint_x2, joint_y2, z + block.height],
+                                [joint_x3, joint_y3, z + block.height],
+                                [joint_x4, joint_y4, z + block.height]
+                            ]
+                            
+                            # Définir les faces du joint
+                            joint_faces = [
+                                [joint_vertices[0], joint_vertices[1], joint_vertices[2], joint_vertices[3]],  # Face inférieure
+                                [joint_vertices[4], joint_vertices[5], joint_vertices[6], joint_vertices[7]],  # Face supérieure
+                                [joint_vertices[0], joint_vertices[1], joint_vertices[5], joint_vertices[4]],  # Face avant
+                                [joint_vertices[2], joint_vertices[3], joint_vertices[7], joint_vertices[6]],  # Face arrière
+                                [joint_vertices[0], joint_vertices[3], joint_vertices[7], joint_vertices[4]],  # Face gauche
+                                [joint_vertices[1], joint_vertices[2], joint_vertices[6], joint_vertices[5]]   # Face droite
+                            ]
+                            
+                            # Créer la collection 3D pour le joint
+                            joint_poly = Poly3DCollection(joint_faces, alpha=1.0)
+                            joint_poly.set_facecolor(colors['Joint'])
+                            joint_poly.set_edgecolor('black')
+                            ax.add_collection3d(joint_poly)
                 
                 # Deuxième couche (rangées paires)
                 elif row % 2 == 1 and row // 2 < len(wall.layer2):
@@ -454,6 +506,51 @@ class BTCWall:
                         poly.set_facecolor(colors[color_key])
                         poly.set_edgecolor('black')
                         ax.add_collection3d(poly)
+                        
+                        # Ajouter un joint vertical après chaque bloc (sauf le dernier)
+                        if i < len(blocks) - 1 and wall.JOINT_WIDTH > 0:
+                            if wall.rotation == 0:
+                                # Joint vertical pour le premier mur
+                                joint_x1, joint_y1 = x_pos - wall.JOINT_WIDTH, wall.position_y
+                                joint_x2, joint_y2 = x_pos, wall.position_y
+                                joint_x3, joint_y3 = x_pos, wall.position_y + block.width
+                                joint_x4, joint_y4 = x_pos - wall.JOINT_WIDTH, wall.position_y + block.width
+                            elif wall.rotation == 90:
+                                # Joint vertical pour le deuxième mur
+                                joint_x1, joint_y1 = x_pos, wall.position_y - wall.JOINT_WIDTH
+                                joint_x2, joint_y2 = x_pos, wall.position_y
+                                joint_x3, joint_y3 = x_pos - block.width, wall.position_y
+                                joint_x4, joint_y4 = x_pos - block.width, wall.position_y - wall.JOINT_WIDTH
+                            
+                            # Créer les sommets du joint
+                            joint_vertices = [
+                                # Face inférieure
+                                [joint_x1, joint_y1, z],
+                                [joint_x2, joint_y2, z],
+                                [joint_x3, joint_y3, z],
+                                [joint_x4, joint_y4, z],
+                                # Face supérieure
+                                [joint_x1, joint_y1, z + block.height],
+                                [joint_x2, joint_y2, z + block.height],
+                                [joint_x3, joint_y3, z + block.height],
+                                [joint_x4, joint_y4, z + block.height]
+                            ]
+                            
+                            # Définir les faces du joint
+                            joint_faces = [
+                                [joint_vertices[0], joint_vertices[1], joint_vertices[2], joint_vertices[3]],  # Face inférieure
+                                [joint_vertices[4], joint_vertices[5], joint_vertices[6], joint_vertices[7]],  # Face supérieure
+                                [joint_vertices[0], joint_vertices[1], joint_vertices[5], joint_vertices[4]],  # Face avant
+                                [joint_vertices[2], joint_vertices[3], joint_vertices[7], joint_vertices[6]],  # Face arrière
+                                [joint_vertices[0], joint_vertices[3], joint_vertices[7], joint_vertices[4]],  # Face gauche
+                                [joint_vertices[1], joint_vertices[2], joint_vertices[6], joint_vertices[5]]   # Face droite
+                            ]
+                            
+                            # Créer la collection 3D pour le joint
+                            joint_poly = Poly3DCollection(joint_faces, alpha=1.0)
+                            joint_poly.set_facecolor(colors['Joint'])
+                            joint_poly.set_edgecolor('black')
+                            ax.add_collection3d(joint_poly)
         
         # Ajouter le premier mur
         add_wall_to_visualization(self, ax_3d)
@@ -507,7 +604,8 @@ class BTCWall:
             Line2D([0], [0], color=mcolors.to_rgba('lightblue', alpha=0.8), lw=4, label='1/2 - Couche 1'),
             Line2D([0], [0], color=mcolors.to_rgba('darkorange', alpha=0.8), lw=4, label='Standard - Couche 2'),
             Line2D([0], [0], color=mcolors.to_rgba('orange', alpha=0.8), lw=4, label='3/4 - Couche 2'),
-            Line2D([0], [0], color=mcolors.to_rgba('moccasin', alpha=0.8), lw=4, label='1/2 - Couche 2')
+            Line2D([0], [0], color=mcolors.to_rgba('moccasin', alpha=0.8), lw=4, label='1/2 - Couche 2'),
+            Line2D([0], [0], color=mcolors.to_rgba('dimgray', alpha=1.0), lw=4, label='Joints')
         ]
         ax_3d.legend(handles=legend_elements, loc='upper right')
         
@@ -518,6 +616,45 @@ class BTCWall:
             ax_3d.text(second_wall.position_x, second_wall.position_y + second_wall.length/2, 
                        second_wall.height + 5, "Mur 2", color='black', 
                        fontweight='bold', ha='center', va='center', size=12)
+        
+        # Fonction commune pour dessiner une couche 2D avec joints
+        def draw_layer_2d_with_joints(wall, layer_blocks, ax, title, is_second_layer=False):
+            ax.set_title(title)
+            ax.set_xlabel("Longueur (cm)")
+            ax.set_ylabel("Épaisseur (cm)")
+            ax.grid(True)
+            
+            # Dessiner les blocs
+            x_pos = 0
+            for i, block in enumerate(layer_blocks):
+                # Choisir la couleur en fonction du type de bloc et de la couche
+                if is_second_layer:
+                    color_key = block.name + '_2'
+                else:
+                    color_key = block.name
+                
+                # Dessiner le bloc comme un rectangle
+                rect = plt.Rectangle((x_pos, 0), block.length, block.width, 
+                                    facecolor=colors[color_key], 
+                                    edgecolor='black', alpha=0.8)
+                ax.add_patch(rect)
+                
+                # Ajouter un joint vertical après chaque bloc (sauf le dernier)
+                if i < len(layer_blocks) - 1 and wall.JOINT_WIDTH > 0:
+                    # Dessiner le joint comme un rectangle gris foncé
+                    joint_rect = plt.Rectangle((x_pos + block.length - wall.JOINT_WIDTH/2, 0), 
+                                              wall.JOINT_WIDTH, block.width,
+                                              facecolor=colors['Joint'], 
+                                              edgecolor='black', alpha=1.0)
+                    ax.add_patch(joint_rect)
+                
+                # Mettre à jour la position pour le prochain bloc
+                x_pos += block.length
+            
+            # Configurer les limites du graphique
+            ax.set_xlim(0, wall.length)
+            ax.set_ylim(0, wall.width)
+            ax.set_aspect('equal')
         
         # Visualisation 2D des deux premières couches
         if second_wall:
@@ -553,19 +690,19 @@ class BTCWall:
             
             # Dessiner la première couche du premier mur
             if len(self.layer1) > 0:
-                draw_layer_2d(self, self.layer1[0], ax_2d_11, "Mur 1 - Couche 1")
+                draw_layer_2d_with_joints(self, self.layer1[0], ax_2d_11, "Mur 1 - Couche 1")
             
             # Dessiner la deuxième couche du premier mur
             if len(self.layer2) > 0:
-                draw_layer_2d(self, self.layer2[0], ax_2d_12, "Mur 1 - Couche 2", True)
+                draw_layer_2d_with_joints(self, self.layer2[0], ax_2d_12, "Mur 1 - Couche 2", True)
             
             # Dessiner la première couche du deuxième mur
             if len(second_wall.layer1) > 0:
-                draw_layer_2d(second_wall, second_wall.layer1[0], ax_2d_21, "Mur 2 - Couche 1")
+                draw_layer_2d_with_joints(second_wall, second_wall.layer1[0], ax_2d_21, "Mur 2 - Couche 1")
             
             # Dessiner la deuxième couche du deuxième mur
             if len(second_wall.layer2) > 0:
-                draw_layer_2d(second_wall, second_wall.layer2[0], ax_2d_22, "Mur 2 - Couche 2", True)
+                draw_layer_2d_with_joints(second_wall, second_wall.layer2[0], ax_2d_22, "Mur 2 - Couche 2", True)
         else:
             # Fonction pour dessiner une couche en 2D
             def draw_layer_2d(wall, layer_blocks, ax, title, is_second_layer=False):
@@ -599,11 +736,11 @@ class BTCWall:
             
             # Dessiner la première couche du mur
             if len(self.layer1) > 0:
-                draw_layer_2d(self, self.layer1[0], ax_2d_1, "Couche 1")
+                draw_layer_2d_with_joints(self, self.layer1[0], ax_2d_1, "Couche 1")
             
             # Dessiner la deuxième couche du mur
             if len(self.layer2) > 0:
-                draw_layer_2d(self, self.layer2[0], ax_2d_2, "Couche 2", True)
+                draw_layer_2d_with_joints(self, self.layer2[0], ax_2d_2, "Couche 2", True)
         
         # Afficher la figure
         plt.tight_layout()
